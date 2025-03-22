@@ -90,7 +90,7 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
-        .info-panel {
+        .debug-info {
             width: 100%;
             max-width: 800px;
             margin-top: 1rem;
@@ -98,6 +98,10 @@
             background-color: #fff;
             border-radius: 4px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            font-family: monospace;
+            white-space: pre-wrap;
+            height: 100px;
+            overflow-y: auto;
         }
         
         footer {
@@ -120,158 +124,203 @@
         
         <div class="controls">
             <div class="button-row">
-                <button id="startStream">Start Live Stream</button>
+                <button id="initAgent">Initialize Agent</button>
+                <button id="startStream" disabled>Start Live Stream</button>
                 <button id="stopStream" disabled>Stop Stream</button>
             </div>
-            <div id="status" class="status">Agent status: Initializing...</div>
+            <div id="status" class="status">Agent status: Waiting for initialization...</div>
         </div>
 
-        <div class="info-panel">
-            <p><strong>User:</strong> <span id="current-user">Ghostblaster08</span></p>
-            <p><strong>Session Started:</strong> <span id="session-time">2025-03-22 13:48:35 UTC</span></p>
-        </div>
+        <div id="debug-panel" class="debug-info">Debug information will appear here...</div>
     </main>
     
     <footer>
-        <p>Powered by D-ID Agent API • <span id="current-time"></span></p>
+        <p>Powered by D-ID Agent API • User: Ghostblaster08 • <span id="current-time"></span></p>
     </footer>
 
-    <!-- D-ID Agent Script -->
-    
-    <script
-    type="module"
-    src="https://agent.d-id.com/v1/index.js"
-    data-name="did-agent"
-    data-mode="fabio"
-    data-client-key="Z29vZ2xlLW9hdXRoMnwxMDg0ODM3Njg3MjU2MDQ2ODU3MzI6T3I3Yi0wOUwwSnVBb0xFN00wMVJC"
-    data-agent-id="agt_-WkTVsoG"
-    data-monitor="true">
-    </script>
-
-    
     <!-- Custom Script for Controlling the Agent -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const initAgentBtn = document.getElementById('initAgent');
             const startStreamBtn = document.getElementById('startStream');
             const stopStreamBtn = document.getElementById('stopStream');
             const statusDiv = document.getElementById('status');
+            const debugPanel = document.getElementById('debug-panel');
             const currentTimeElement = document.getElementById('current-time');
             let agentInstance = null;
-
-            // Update the current time in the footer
+            
+            // Update the current time
             function updateCurrentTime() {
                 const now = new Date();
-                const options = { 
-                    year: 'numeric', 
-                    month: '2-digit', 
-                    day: '2-digit',
-                    hour: '2-digit', 
-                    minute: '2-digit', 
-                    second: '2-digit',
-                    hour12: false
-                };
-                currentTimeElement.textContent = now.toLocaleString('en-US', options);
+                currentTimeElement.textContent = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
             }
             
             // Update time initially and every second
             updateCurrentTime();
             setInterval(updateCurrentTime, 1000);
-
+            
             // Function to update status
             function updateStatus(message) {
                 statusDiv.textContent = `Agent status: ${message}`;
-                console.log(`Agent status: ${message}`);
+                logDebug(`Status: ${message}`);
             }
+            
+            // Function to log debug information
+            function logDebug(message) {
+                const timestamp = new Date().toISOString().substring(11, 19);
+                debugPanel.textContent += `[${timestamp}] ${message}\n`;
+                debugPanel.scrollTop = debugPanel.scrollHeight; // Auto-scroll to bottom
+                console.log(message);
+            }
+
+            // Function to manually load the D-ID agent script
+            function loadDIDAgentScript() {
+                updateStatus('Loading D-ID agent script...');
+                
+                // Remove any existing script to prevent duplicates
+                const existingScript = document.querySelector('script[data-name="did-agent"]');
+                if (existingScript) {
+                    existingScript.remove();
+                    logDebug('Removed existing agent script');
+                }
+                
+                // Create and add the script element
+                const script = document.createElement('script');
+                script.type = 'module';
+                script.src = 'https://agent.d-id.com/v1/index.js';
+                script.setAttribute('data-name', 'did-agent');
+                script.setAttribute('data-mode', 'fabio');
+                script.setAttribute('data-client-key', 'amFpa3NkZXNhckBnbWFpbC5jb20:fW5PyAwS_avjjrDzdBj2-');
+                script.setAttribute('data-agent-id', 'agt_-WkTVsoG');
+                script.setAttribute('data-monitor', 'true');
+                
+                script.onload = function() {
+                    logDebug('D-ID agent script loaded successfully');
+                };
+                
+                script.onerror = function() {
+                    updateStatus('Failed to load D-ID agent script');
+                    logDebug('Error loading D-ID agent script');
+                };
+                
+                document.body.appendChild(script);
+                logDebug('Added D-ID agent script to document');
+            }
+
+            // Initialize Agent button
+            initAgentBtn.addEventListener('click', function() {
+                updateStatus('Initializing agent...');
+                loadDIDAgentScript();
+            });
 
             // Wait for D-ID agent to be loaded
             window.addEventListener('did-agent:loaded', function(event) {
-                updateStatus('Agent loaded and ready');
+                updateStatus('Agent loaded successfully');
                 
-                // Get the agent instance
-                agentInstance = event.detail.agent;
-                
-                // Enable the start button
-                startStreamBtn.disabled = false;
+                try {
+                    // Get the agent instance
+                    agentInstance = event.detail.agent;
+                    logDebug('Agent instance obtained: ' + (agentInstance ? 'YES' : 'NO'));
+                    
+                    // Enable the start button
+                    initAgentBtn.disabled = true;
+                    startStreamBtn.disabled = false;
+                } catch (error) {
+                    updateStatus(`Error getting agent instance: ${error.message}`);
+                    logDebug(`Error: ${error.message}`);
+                }
             });
 
             // Event listeners for agent status changes
-            window.addEventListener('did-agent:connected', () => {
+            window.addEventListener('did-agent:connected', (event) => {
                 updateStatus('Connected and streaming');
+                logDebug('did-agent:connected event received');
+                logDebug('Event details: ' + JSON.stringify(event.detail || {}));
             });
 
-            window.addEventListener('did-agent:disconnected', () => {
+            window.addEventListener('did-agent:disconnected', (event) => {
                 updateStatus('Disconnected');
-                startStreamBtn.disabled = false;
+                logDebug('did-agent:disconnected event received');
+                initAgentBtn.disabled = false;
+                startStreamBtn.disabled = true;
                 stopStreamBtn.disabled = true;
             });
 
             window.addEventListener('did-agent:error', (event) => {
-                updateStatus(`Error: ${event.detail.error}`);
-                console.error('D-ID Agent Error:', event.detail.error);
-                startStreamBtn.disabled = false;
+                updateStatus(`Error: ${event.detail.error || 'Unknown error'}`);
+                logDebug('did-agent:error event received');
+                logDebug('Error details: ' + JSON.stringify(event.detail || {}));
+                initAgentBtn.disabled = false;
+                startStreamBtn.disabled = true;
                 stopStreamBtn.disabled = true;
             });
 
             // Start streaming button
             startStreamBtn.addEventListener('click', function() {
                 if (!agentInstance) {
-                    updateStatus('Agent not initialized yet');
+                    updateStatus('Agent not initialized yet - please initialize first');
+                    logDebug('Start button clicked but agent is not initialized');
                     return;
                 }
                 
                 updateStatus('Starting stream...');
+                logDebug('Attempting to start stream');
                 
                 // Start the stream
-                agentInstance.start({
-                    container: document.getElementById('did-agent-container'),
-                    streamMode: 'live',  // Set to 'live' for live streaming
-                    autoplay: true,
-                    config: {
-                        // Additional configuration if needed
-                        user: 'Ghostblaster08'
-                    }
-                }).then(() => {
-                    updateStatus('Stream started successfully');
-                    startStreamBtn.disabled = true;
-                    stopStreamBtn.disabled = false;
-                }).catch(error => {
-                    updateStatus(`Failed to start stream: ${error.message}`);
-                    console.error('Start stream error:', error);
-                });
+                try {
+                    agentInstance.start({
+                        container: document.getElementById('did-agent-container'),
+                        streamMode: 'live',  // Set to 'live' for live streaming
+                        autoplay: true
+                    }).then(() => {
+                        updateStatus('Stream started successfully');
+                        logDebug('Stream started');
+                        startStreamBtn.disabled = true;
+                        stopStreamBtn.disabled = false;
+                    }).catch(error => {
+                        updateStatus(`Failed to start stream: ${error.message}`);
+                        logDebug(`Start stream error: ${error.message}`);
+                        logDebug(error.stack || 'No stack trace available');
+                    });
+                } catch (error) {
+                    updateStatus(`Error calling start method: ${error.message}`);
+                    logDebug(`Error calling start: ${error.message}`);
+                    logDebug(error.stack || 'No stack trace available');
+                }
             });
 
             // Stop streaming button
             stopStreamBtn.addEventListener('click', function() {
                 if (!agentInstance) {
                     updateStatus('Agent not initialized yet');
+                    logDebug('Stop button clicked but agent is not initialized');
                     return;
                 }
                 
                 updateStatus('Stopping stream...');
+                logDebug('Attempting to stop stream');
                 
                 // Stop the stream
-                agentInstance.stop().then(() => {
-                    updateStatus('Stream stopped successfully');
-                    startStreamBtn.disabled = false;
-                    stopStreamBtn.disabled = true;
-                }).catch(error => {
-                    updateStatus(`Failed to stop stream: ${error.message}`);
-                    console.error('Stop stream error:', error);
-                });
-            });
-
-            // Log when the page is about to be unloaded
-            window.addEventListener('beforeunload', function() {
-                if (agentInstance) {
-                    try {
-                        // Attempt to stop the stream when the page is closed
-                        agentInstance.stop();
-                        console.log('Stream stopped due to page unload');
-                    } catch (error) {
-                        console.error('Error stopping stream on unload:', error);
-                    }
+                try {
+                    agentInstance.stop().then(() => {
+                        updateStatus('Stream stopped successfully');
+                        logDebug('Stream stopped');
+                        startStreamBtn.disabled = false;
+                        stopStreamBtn.disabled = true;
+                    }).catch(error => {
+                        updateStatus(`Failed to stop stream: ${error.message}`);
+                        logDebug(`Stop stream error: ${error.message}`);
+                        logDebug(error.stack || 'No stack trace available');
+                    });
+                } catch (error) {
+                    updateStatus(`Error calling stop method: ${error.message}`);
+                    logDebug(`Error calling stop: ${error.message}`);
+                    logDebug(error.stack || 'No stack trace available');
                 }
             });
+
+            // Log initialization status
+            logDebug('Page loaded, waiting for user to initialize agent');
         });
     </script>
 </body>
