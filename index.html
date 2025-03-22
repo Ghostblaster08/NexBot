@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-ID Live Streaming Agent</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+        }
+        
+        header {
+            background-color: #333;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        .agent-container {
+            width: 100%;
+            max-width: 800px;
+            height: 450px;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background-color: #000;
+            position: relative;
+        }
+        
+        #did-agent-container {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .controls {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .button-row {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+        
+        button {
+            padding: 0.75rem 1.5rem;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #3367d6;
+        }
+        
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            margin-top: 1rem;
+            padding: 1rem;
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-panel {
+            width: 100%;
+            max-width: 800px;
+            margin-top: 1rem;
+            padding: 1rem;
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        footer {
+            background-color: #333;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>D-ID Live Streaming Agent</h1>
+    </header>
+    
+    <main>
+        <div class="agent-container">
+            <div id="did-agent-container"></div>
+        </div>
+        
+        <div class="controls">
+            <div class="button-row">
+                <button id="startStream">Start Live Stream</button>
+                <button id="stopStream" disabled>Stop Stream</button>
+            </div>
+            <div id="status" class="status">Agent status: Initializing...</div>
+        </div>
+
+        <div class="info-panel">
+            <p><strong>User:</strong> <span id="current-user">Ghostblaster08</span></p>
+            <p><strong>Session Started:</strong> <span id="session-time">2025-03-22 13:48:35 UTC</span></p>
+        </div>
+    </main>
+    
+    <footer>
+        <p>Powered by D-ID Agent API • <span id="current-time"></span></p>
+    </footer>
+
+    <!-- D-ID Agent Script -->
+    <script
+        type="module"
+        src="https://agent.d-id.com/v1/index.js"
+        data-name="did-agent"
+        data-mode="fabio"
+        data-client-key="amFpa3NkZXNhckBnbWFpbC5jb20:4Cbu2oaEQs2YKau0q1GyE"
+        data-agent-id="agt_-WkTVsoG"
+        data-monitor="true">
+    </script>
+    
+    <!-- Custom Script for Controlling the Agent -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const startStreamBtn = document.getElementById('startStream');
+            const stopStreamBtn = document.getElementById('stopStream');
+            const statusDiv = document.getElementById('status');
+            const currentTimeElement = document.getElementById('current-time');
+            let agentInstance = null;
+
+            // Update the current time in the footer
+            function updateCurrentTime() {
+                const now = new Date();
+                const options = { 
+                    year: 'numeric', 
+                    month: '2-digit', 
+                    day: '2-digit',
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit',
+                    hour12: false
+                };
+                currentTimeElement.textContent = now.toLocaleString('en-US', options);
+            }
+            
+            // Update time initially and every second
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+
+            // Function to update status
+            function updateStatus(message) {
+                statusDiv.textContent = `Agent status: ${message}`;
+                console.log(`Agent status: ${message}`);
+            }
+
+            // Wait for D-ID agent to be loaded
+            window.addEventListener('did-agent:loaded', function(event) {
+                updateStatus('Agent loaded and ready');
+                
+                // Get the agent instance
+                agentInstance = event.detail.agent;
+                
+                // Enable the start button
+                startStreamBtn.disabled = false;
+            });
+
+            // Event listeners for agent status changes
+            window.addEventListener('did-agent:connected', () => {
+                updateStatus('Connected and streaming');
+            });
+
+            window.addEventListener('did-agent:disconnected', () => {
+                updateStatus('Disconnected');
+                startStreamBtn.disabled = false;
+                stopStreamBtn.disabled = true;
+            });
+
+            window.addEventListener('did-agent:error', (event) => {
+                updateStatus(`Error: ${event.detail.error}`);
+                console.error('D-ID Agent Error:', event.detail.error);
+                startStreamBtn.disabled = false;
+                stopStreamBtn.disabled = true;
+            });
+
+            // Start streaming button
+            startStreamBtn.addEventListener('click', function() {
+                if (!agentInstance) {
+                    updateStatus('Agent not initialized yet');
+                    return;
+                }
+                
+                updateStatus('Starting stream...');
+                
+                // Start the stream
+                agentInstance.start({
+                    container: document.getElementById('did-agent-container'),
+                    streamMode: 'live',  // Set to 'live' for live streaming
+                    autoplay: true,
+                    config: {
+                        // Additional configuration if needed
+                        user: 'Ghostblaster08'
+                    }
+                }).then(() => {
+                    updateStatus('Stream started successfully');
+                    startStreamBtn.disabled = true;
+                    stopStreamBtn.disabled = false;
+                }).catch(error => {
+                    updateStatus(`Failed to start stream: ${error.message}`);
+                    console.error('Start stream error:', error);
+                });
+            });
+
+            // Stop streaming button
+            stopStreamBtn.addEventListener('click', function() {
+                if (!agentInstance) {
+                    updateStatus('Agent not initialized yet');
+                    return;
+                }
+                
+                updateStatus('Stopping stream...');
+                
+                // Stop the stream
+                agentInstance.stop().then(() => {
+                    updateStatus('Stream stopped successfully');
+                    startStreamBtn.disabled = false;
+                    stopStreamBtn.disabled = true;
+                }).catch(error => {
+                    updateStatus(`Failed to stop stream: ${error.message}`);
+                    console.error('Stop stream error:', error);
+                });
+            });
+
+            // Log when the page is about to be unloaded
+            window.addEventListener('beforeunload', function() {
+                if (agentInstance) {
+                    try {
+                        // Attempt to stop the stream when the page is closed
+                        agentInstance.stop();
+                        console.log('Stream stopped due to page unload');
+                    } catch (error) {
+                        console.error('Error stopping stream on unload:', error);
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
